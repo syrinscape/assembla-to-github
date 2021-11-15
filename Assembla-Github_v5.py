@@ -1,3 +1,6 @@
+import calendar
+import time
+
 from github import Github
 from github.GithubException import RateLimitExceededException
 import ast, os, re, sys, glob, io, requests, zipfile
@@ -16,6 +19,44 @@ from credentials import Credentials
 
 g = Github(Credentials.github_user, Credentials.github_password)
 
+
+def github_check_rate_limit(core=1, graphql=1, search=1):
+    """
+    Sleep until the rate limit is reset if we have fewer than the required number of
+    requests (core, graphql, search - default: 1) remaining.
+    """
+    rate_limit = g.get_rate_limit()
+    for limit, required in (
+        (rate_limit.core, core),
+        (rate_limit.graphql, graphql),
+        (rate_limit.search, search),
+    ):
+        if limit.remaining < required:
+            reset_timestamp = calendar.timegm(limit.reset.timetuple())
+            # Sleep until 1 second past the reset.
+            sleep_time = reset_timestamp - calendar.timegm(time.gmtime()) + 1
+            print(
+                "GitHub API rate limit nearly depleted. Sleeping for %s seconds. %r" % (
+                    sleep_time, limit
+                )
+            )
+            time.sleep(sleep_time)
+
+
+def github_iter(seq):
+    """
+    Iterate a paginated sequence while avoiding the API rate limit.
+    """
+    new_seq = []
+    github_check_rate_limit()
+    for i, item in enumerate(seq, start=1):
+        if i == len(seq._PaginatedListBase__elements) and seq._couldGrow():
+            github_check_rate_limit()
+        new_seq.append(item)
+    return new_seq
+
+
+COMMITS = []
 FILES_DIR = "files"
 
 val = {
@@ -490,25 +531,21 @@ def createIssue(issue_name, ticket, repo, file_links):
             try:
                 if ref[0].endswith('revision'):
                     print(ref[0])
-                    commits = repo.get_commits()
-                    if commits:
-                        for c, commit in enumerate(commits, start=1):
-                            if c == int(ref[1].strip('#')):
-                                hs = commit.sha
-                                issue_body = re.sub(f"({ref[1]})", str(hs), issue_body)
+                    for c, commit in enumerate(COMMITS, start=1):
+                        if c == int(ref[1].strip('#')):
+                            hs = commit.sha
+                            issue_body = re.sub(f"({ref[1]})", str(hs), issue_body)
             except:
                 pass
     search_for_reference = re.findall(r"\[\[(.*?):(\d+)\]\].*?", issue_body)
     if search_for_reference:
         for ref in search_for_reference:
             try:
-                commits = repo.get_commits()
                 print("Ref: ", ref)
-                if commits:
-                    for c, commit in enumerate(commits, start=1):
-                        if c == int(ref[1]):
-                            hs = commit.sha
-                            issue_body = re.sub(rf"\[\[(.*?)({ref[1]})\]\].*?", hs, issue_body)
+                for c, commit in enumerate(COMMITS, start=1):
+                    if c == int(ref[1]):
+                        hs = commit.sha
+                        issue_body = re.sub(rf"\[\[(.*?)({ref[1]})\]\].*?", hs, issue_body)
             except:
                 pass
     find_urls = re.findall(r"\[\[(url):(.*?)\|(.*?)\]\].*?", issue_body)
@@ -529,12 +566,14 @@ def createIssue(issue_name, ticket, repo, file_links):
             if counter == len(file_links):
                 issue_body = re.sub(rf"\[\[{iss_file[0]}:{iss_file[1]}(\|.*?)?\]\]", f"[file:{iss_file[1]}]", issue_body)
     if issue_body:
+        github_check_rate_limit()
         issue = repo.create_issue(title=issue_name, body=issue_body, labels=labs)
         print(f"Created issue: {issue_name}")
 
     return issue
 
 def addComments(ticket, issue, file_links, repo):
+    github_check_rate_limit(core=2)  # Create, edit
     for comment in ticket["ticket_comments"]:
         comment_body = comment["comment"]
         if len(comment_body) == 0 or comment_body == 'null':
@@ -552,25 +591,21 @@ def addComments(ticket, issue, file_links, repo):
                     try:
                         if ref[0].endswith('revision'):
                             print(ref[0])
-                            commits = repo.get_commits()
-                            if commits:
-                                for c, commit in enumerate(commits, start=1):
-                                    if c == int(ref[1].strip('#')):
-                                        hs = commit.sha
-                                        comment_body = re.sub(f"({ref[1]})", str(hs), comment_body)
+                            for c, commit in enumerate(COMMITS, start=1):
+                                if c == int(ref[1].strip('#')):
+                                    hs = commit.sha
+                                    comment_body = re.sub(f"({ref[1]})", str(hs), comment_body)
                     except:
                         pass
             search_for_reference = re.findall(r"\[\[(.*?):(\d+)\]\].*?", comment_body)
             if search_for_reference:
                 for ref in search_for_reference:
                     try:
-                        commits = repo.get_commits()
                         print("Ref: ", ref)
-                        if commits:
-                            for c, commit in enumerate(commits, start=1):
-                                if c == int(ref[1]):
-                                    hs = commit.sha
-                                    comment_body = re.sub(rf"\[\[(.*?)({ref[1]})\]\].*?", hs, comment_body)
+                        for c, commit in enumerate(COMMITS, start=1):
+                            if c == int(ref[1]):
+                                hs = commit.sha
+                                comment_body = re.sub(rf"\[\[(.*?)({ref[1]})\]\].*?", hs, comment_body)
                     except:
                         pass
             comment_file = re.findall(r"\[\[(file|image):(.*?)(\|.*?)?\]\].*?", comment_body)
@@ -600,6 +635,8 @@ def addComments(ticket, issue, file_links, repo):
         print("Fixed issue: fixed")
 
 def main():
+    global COMMITS
+
     ap = ArgumentParser()
     ap.add_argument("-r", "--repo", required=True, help="Working repository in format user/repo")
     ap.add_argument("-re", "--rename", required=False, action='store_true',
@@ -683,7 +720,12 @@ def main():
         print("Done renaming.")
         exit(0)
 
+    github_check_rate_limit()
     repo = g.get_repo(working_repo)
+
+    # Get commits one time only.
+    COMMITS = github_iter(repo.get_commits())
+
     print("Using repo: ", repo)
 
     # get list of available files for transfer
@@ -729,7 +771,7 @@ def main():
 
     if args["update"]:
         print("Updating existing tickets...")
-        issues = repo.get_issues(state='all')
+        issues = github_iter(repo.get_issues(state='all'))
         with open('files.txt', 'r') as file:
             ready_files = file.read()
         ready_urls = re.findall(r".*?\[(.*?)\]\((.*?)\).*?", ready_files)
@@ -743,6 +785,8 @@ def main():
             file_links = re.findall(r".*?\!\[(.*?)\]\((.*?)\).*?", isbody)
             file_links.extend(file_urls)
             failed_files = re.findall(r".*?\[file:(.*?)\].*?", isbody)
+            maybe_required = (len(failed_files) + len(file_links)) * len(ready_links)
+            github_check_rate_limit(core=maybe_required)
             if failed_files:
                 for link in failed_files:
                     for fi in ready_links:
@@ -758,13 +802,15 @@ def main():
                             isbody = re.sub(rf".*?\[({link[0]})\]\(({link[1]})\).*?", f"![{fi[0]}]({fi[1]})", isbody)
                             issue.edit(body=isbody)
                             print(f"Updating [{issue.title}]")
-            comments = issue.get_comments()
+            comments = github_iter(issue.get_comments())
             for comment in comments:
                 combody = comment.body
                 file_urls = re.findall(r".*?\[(.*?)\]\((.*?)\).*?", combody)
                 file_links = re.findall(r".*?\!\[(.*?)\]\((.*?)\).*?", combody) 
                 file_links.extend(file_urls)
                 failed_files = re.findall(r".*?\[file:(.*?)\].*?", combody) 
+                maybe_required = (len(failed_files) + len(file_links)) * len(ready_links)
+                github_check_rate_limit(core=maybe_required)
                 if failed_files:
                     for link in failed_files:
                         for fi in ready_links:
@@ -805,26 +851,29 @@ def main():
                 if comment["user_id"] == val[key]:
                     comment["username"] = key
     
+    # Get issues one time only.
+    issues = github_iter(repo.get_issues(state='all'))
     for ticket in sorted_tickets_array:
         try:
             issue_name = f"""{ticket["ticket_title"]}"""
             lock = None
-            for check_issue in repo.get_issues(state='all'):
+            for check_issue in issues:
                 if check_issue and check_issue.title == issue_name:
                     print("Issue exists; passing: [", check_issue.title, "]")
                     lock = 1
             if not lock:
                 while True:
-                    existing_issues = repo.get_issues(state='all')
-                    if existing_issues.totalCount == int(ticket["ticket_number"]-1) or \
-                        existing_issues.totalCount > int(ticket["ticket_number"]-1):
+                    if len(issues) == int(ticket["ticket_number"]-1) or \
+                        len(issues) > int(ticket["ticket_number"]-1):
                         break
                     else:
-                        print(f"Creating dummy issue until {ticket['ticket_number']}: current counter is {existing_issues.totalCount+1}")
+                        print(f"Creating dummy issue until {ticket['ticket_number']}: current counter is {len(issues)+1}")
                         iss = repo.create_issue(title="null", body="null")
+                        issues.append(iss)
                         iss.edit(state='closed')
                         continue
                 issue = createIssue(issue_name, ticket, repo, file_links)
+                issues.append(issue)
                 addComments(ticket, issue, file_links, repo)
         except RateLimitExceededException as e:
             # wait 1 hour for rate limit
