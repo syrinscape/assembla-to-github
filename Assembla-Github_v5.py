@@ -629,7 +629,7 @@ def addComments(ticket, issue, file_links, repo):
         issue.edit(state='closed', labels=["Invalid"])
         print("Closed issue: invalid")
     if ticket["status"] == "Fixed":
-        issue.edit(labels=["Fixed"])
+        issue.edit(state='closed', labels=["Fixed"])  # Close fixed
         print("Fixed issue: fixed")
 
 def main():
