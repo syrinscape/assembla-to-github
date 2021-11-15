@@ -64,7 +64,18 @@ val = {
     "securedglobe": "c68pgUDuer4PiDacwqjQWU",
 }
 
-EXTS = ['jpg', 'png', 'jpeg', 'docx', 'log', 'pdf', 'pptx', 'txt', 'zip', 'JPG', 'PNG']
+EXTS = [
+    'docx',
+    'jpeg',
+    'jpg',
+    'log',
+    'pdf',
+    'png',
+    'pptx',
+    'txt',
+    'zip',
+]
+EXTS.extend(ext.upper() for ext in EXTS)
 # list of allowed extensions
 
 def every_downloads_chrome(driver):
@@ -88,22 +99,22 @@ def parseAttachmentsFromBak(sid, tickets):
             if file:
                 filelist.append(rf"{file[1]}")
     else:
-        dirfile = glob.glob(f"{FILES_DIR}\**")
+        dirfile = glob.glob(os.path.join(FILES_DIR, "**"))
         with open("filenames.txt") as file:
             for line in file:
                 filelist.append(line.strip())
         for file in dirfile:
-            file = file.replace(f"{FILES_DIR}\\", "")
+            file = file.replace(FILES_DIR + os.path.sep)
             file = file[:file.rfind(".")]
             for c, fi in enumerate(filelist):
                 if fi in file:
                     del filelist[c]
-                elif os.path.isfile(FILES_DIR+'\\'+fi):
+                elif os.path.isfile(os.path.join(FILES_DIR, fi)):
                     del filelist[c]
     chrome_options = webdriver.ChromeOptions()
-    path = os.path.dirname(os.path.realpath(__file__))
+    path = os.path.abspath(".")
     chrome_options.add_experimental_option("prefs", {
-    "download.default_directory": f"{path}\\temp",
+    "download.default_directory": os.path.join(path, "temp"),
     "download.prompt_for_download": False,
     "download.directory_upgrade": True,
     "safebrowsing.enabled": True
@@ -167,23 +178,25 @@ def parseAttachmentsFromBak(sid, tickets):
         except JavascriptException:
             pass
         sleep(8)
-        temps = glob.glob(f"temp\**")
+        temps = glob.glob(os.path.join("temp", "**"))
         try:
             for tm in temps:
                 if tm.endswith('jpg'):
-                    os.rename(tm, f"files\{file}.jpg")
+                    os.rename(tm, os.path.join("files", f"{file}.jpg"))
+                elif tm.endswith('jpeg'):
+                    os.rename(tm, os.path.join("files", f"{file}.jpeg"))
                 elif tm.endswith('png'):
-                    os.rename(tm, f"files\{file}.png")
+                    os.rename(tm, os.path.join("files", f"{file}.png"))
                 elif tm.endswith('zip'):
-                    os.rename(tm, f"files\{file}.zip")
+                    os.rename(tm, os.path.join("files", f"{file}.zip"))
                 elif tm.endswith('pdf'):
-                    os.rename(tm, f"files\{file}.pdf")
+                    os.rename(tm, os.path.join("files", f"{file}.pdf"))
                 elif tm.endswith('docx'):
-                    os.rename(tm, f"files\{file}.docx")
+                    os.rename(tm, os.path.join("files", f"{file}.docx"))
                 elif tm.endswith('txt'):
-                    os.rename(tm, f"files\{file}.txt")
+                    os.rename(tm, os.path.join("files", f"{file}.txt"))
                 else:
-                    os.rename(tm, f"files\{file}")
+                    os.rename(tm, os.path.join("files", file))
         except FileExistsError:
             pass
     driver.close()
@@ -334,27 +347,25 @@ def renameFiles(sorted_tickets_array):
                 for attach in comment["attachments"]:
                     fname = attach["filename"]
                     fid = attach["file_id"]
-                    if not fname.endswith('.png') and not fname.endswith('.jpg') \
-                        and not fname.endswith('.PNG') and not fname.endswith('.JPG'):
+                    if not re.search(r"\.(jpe?g|png)$", fname.lower()):
                         dot = re.search(r"\..*", fname)
                         dot = "" if not dot else dot.group(0)
                         try:
-                            get_file = glob.glob(f"{FILES_DIR}\{fid}.*")
+                            get_file = glob.glob(os.path.join(FILES_DIR, f"{fid}.*"))
                             if not get_file:
-                                get_file = glob.glob(f"{FILES_DIR}\{fid}")
+                                get_file = glob.glob(os.path.join(FILES_DIR, fid))
                             get_dot = re.search(r"\..*", get_file[0])
                             get_dot = "" if not get_dot else get_dot.group(0)
                             if get_dot and not dot:
                                 dot = get_dot
-                            if get_dot.endswith('.png') or get_dot.endswith('.jpg') or get_dot.endswith('.PNG') \
-                                or get_dot.endswith('.JPG'):
+                            if re.search(r"\.(jpe?g|png)$", get_dot.lower()):
                                 pass
                             else:
-                                if os.path.isfile(f"{FILES_DIR}\{fid}{dot}"):
+                                if os.path.isfile(os.path.join(FILES_DIR, f"{fid}{dot}")):
                                     pass
                                 else:
                                     print(f"Renaming: {fid} -> {fid}{dot}")
-                                    os.rename(get_file[0], f"{FILES_DIR}\{fid}{dot}")
+                                    os.rename(get_file[0], os.path.join(FILES_DIR, f"{fid}{dot}"))
                                 counter = 0
                                 for ext in EXTS:
                                     if ext not in dot:
@@ -364,10 +375,10 @@ def renameFiles(sorted_tickets_array):
                                 if counter == len(EXTS) and not get_file[0].endswith(".htm"):
                                     # not attachable
                                     print(f"Making zip file -> {fid}.zip")
-                                    if os.path.isfile(f"{FILES_DIR}\{fid}.zip"):
-                                        os.remove(f"{FILES_DIR}\{fid}.zip")
-                                    obj = zipfile.ZipFile(f"{FILES_DIR}\{fid}.zip", 'w')
-                                    obj.write(f"{FILES_DIR}\{fid}{dot}")
+                                    if os.path.isfile(os.path.join(FILES_DIR, f"{fid}.zip")):
+                                        os.remove(os.path.join(FILES_DIR, f"{fid}.zip"))
+                                    obj = zipfile.ZipFile(os.path.join(FILES_DIR, f"{fid}.zip"), 'w')
+                                    obj.write(os.path.join(FILES_DIR, f"{fid}{dot}"))
                                     obj.close()
                         except Exception:
                             pass # doesn't exist
@@ -376,16 +387,16 @@ def renameFiles(sorted_tickets_array):
 def uploadToGithub(dirfiles, tickets, working_repo):
     filelist = []
     ready_files = ""
-    path = os.path.dirname(os.path.realpath(__file__))
+    path = os.path.abspath(".")
     # filter attachments from .bak file to remove attachments not allowed or not existing
     find_files = re.findall(r".*?\[\[(file|image):(.*?)(\|.*?)?\]\].*?", tickets)
 
     for file in find_files:
         for dr in dirfiles:
-            di = str(dr.replace(f"{FILES_DIR}\\", ""))
+            di = str(dr.replace(FILES_DIR + os.path.sep, ""))
             di = di[:di.rfind('.')]
             if di in file[1]:
-                filelist.append(f"{path}\{FILES_DIR}\{dr}")
+                filelist.append(os.path.join(path, FILES_DIR, dr))
     if os.path.isfile('files.txt'):
         print('files.txt exists, parsing existing links...')
         ex_files = ""
@@ -433,7 +444,7 @@ def uploadToGithub(dirfiles, tickets, working_repo):
     findButton = driver.find_elements_by_xpath("//*[@class='btn btn-primary']")
     findButton[0].click()
     sleep(2)
-    # split filelist into chunks of 8 files
+    # split filelist into chunks of 2 files
     chunks = [filelist[i:i + 2] for i in range(0, len(filelist), 2)]
     for chunk in chunks:
         chk = (' \n ').join(chunk)
