@@ -108,7 +108,7 @@ def parseAttachmentsFromBak(sid, tickets):
     "download.directory_upgrade": True,
     "safebrowsing.enabled": True
     })
-    chrome_options.add_argument("user-data-dir=selenium") 
+    chrome_options.add_argument("user-data-dir=selenium")
     chrome_options.add_argument("start-maximized")
     chrome_options.add_argument("--disable-infobars")
     try:
@@ -241,7 +241,7 @@ def parseTickets(tickets):
                 "username": None
             }
             ticket_info["ticket_comments"].append(comment_info)
-    
+
         sorted_comments_array = sorted(
             ticket_info["ticket_comments"],
             key=lambda x: datetime.strptime(x['created_on'], '%Y-%m-%dT%H:%M:%S.000+00:00')
@@ -311,7 +311,7 @@ def linkStatus(sorted_tickets_array, sorted_status_array, tickets):
                     comment["attachments"].append({
                         "filename": fname,
                         "file_id": fi[1]
-                    })   
+                    })
     for tick in sorted_tickets_array:
         file_id = re.findall(r".*?\[\[(file|image):(.*?)(\|.*?)?\]\].*?", tick["ticket_description"])
         if file_id:
@@ -322,7 +322,7 @@ def linkStatus(sorted_tickets_array, sorted_status_array, tickets):
                 comment["attachments"].append({
                     "filename": fname,
                     "file_id": fi[1]
-                })   
+                })
     return sorted_tickets_array, sorted_status_array
 
 
@@ -379,7 +379,7 @@ def uploadToGithub(dirfiles, tickets, working_repo):
     path = os.path.dirname(os.path.realpath(__file__))
     # filter attachments from .bak file to remove attachments not allowed or not existing
     find_files = re.findall(r".*?\[\[(file|image):(.*?)(\|.*?)?\]\].*?", tickets)
-    
+
     for file in find_files:
         for dr in dirfiles:
             di = str(dr.replace(f"{FILES_DIR}\\", ""))
@@ -406,7 +406,7 @@ def uploadToGithub(dirfiles, tickets, working_repo):
         return 1
     # launch selenium to upload attachments to github camo
     chrome_options = Options()
-    chrome_options.add_argument("user-data-dir=selenium") 
+    chrome_options.add_argument("user-data-dir=selenium")
     chrome_options.add_argument("start-maximized")
     chrome_options.add_argument("--disable-infobars")
     try:
@@ -462,7 +462,7 @@ def uploadToGithub(dirfiles, tickets, working_repo):
 
 def deleteIssues(working_repo):
     chrome_options = Options()
-    chrome_options.add_argument("user-data-dir=selenium") 
+    chrome_options.add_argument("user-data-dir=selenium")
     chrome_options.add_argument("start-maximized")
     chrome_options.add_argument("--disable-infobars")
     try:
@@ -804,9 +804,9 @@ def main():
             for comment in comments:
                 combody = comment.body
                 file_urls = re.findall(r".*?\[(.*?)\]\((.*?)\).*?", combody)
-                file_links = re.findall(r".*?\!\[(.*?)\]\((.*?)\).*?", combody) 
+                file_links = re.findall(r".*?\!\[(.*?)\]\((.*?)\).*?", combody)
                 file_links.extend(file_urls)
-                failed_files = re.findall(r".*?\[file:(.*?)\].*?", combody) 
+                failed_files = re.findall(r".*?\[file:(.*?)\].*?", combody)
                 maybe_required = (len(failed_files) + len(file_links)) * len(ready_links)
                 github_check_rate_limit(core=maybe_required)
                 if failed_files:
@@ -848,7 +848,7 @@ def main():
             for key in val.keys():
                 if comment["user_id"] == val[key]:
                     comment["username"] = key
-    
+
     # Get issues one time only.
     issues = github_iter(repo.get_issues(state='all'))
     for ticket in sorted_tickets_array:
