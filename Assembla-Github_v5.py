@@ -484,23 +484,21 @@ def deleteIssues(working_repo):
         btn = driver.find_elements_by_xpath("//*[@class='btn btn-primary btn-block js-sign-in-button']")
         btn[0].click()
         sleep(1)
-    driver.get(f"https://github.com/{working_repo}/issues/")
-    while True:
-        get_tab = driver.find_element_by_xpath("//*[@class='js-selected-navigation-item selected reponav-item']/child::*[@class='Counter']")
-        if int(get_tab.text) == 0:
-            print("No issues left. Exit.")
-            break
-        else:
-            find_issues = driver.find_elements_by_xpath("//*[@class='link-gray-dark v-align-middle no-underline h4 js-navigation-open']")
-            link = find_issues[0].get_attribute("href")
-            driver.get(link)
-            find_notif = driver.find_elements_by_tag_name("summary")
-            find_notif[len(find_notif)-1].click()
-            sleep(1)
-            find_button = driver.find_element_by_xpath("//*[@class='btn btn-danger input-block float-none']")
-            find_button.click()
-            sleep(1)
-            driver.get(f"https://github.com/{working_repo}/issues/")
+
+    github_check_rate_limit()
+    repo = g.get_repo(working_repo)
+
+    for issue in github_iter(repo.get_issues(state='all')):
+        driver.get(issue.html_url)
+        # Delete issue (sidebar)
+        find_button = driver.find_element_by_xpath("//*[@class='details-reset details-overlay details-overlay-dark js-delete-issue']")
+        find_button.click()
+        sleep(1)
+        # Delete this issue (popup confirmation)
+        find_button = driver.find_element_by_xpath("//*[@class='btn btn-danger input-block float-none']")
+        find_button.click()
+        sleep(1)
+
     driver.close()
     driver.quit()
 
