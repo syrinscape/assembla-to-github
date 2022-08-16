@@ -618,6 +618,12 @@ def deleteIssues(working_repo):
     repo = g.get_repo(working_repo)
 
     for issue in github_iter(repo.get_issues(state='all')):
+        # GitHub's REST API v3 considers every pull request an issue, but not every
+        # issue is a pull request. We cannot delete pull requests, so we must skip them.
+        # See: https://docs.github.com/en/rest/issues/issues#get-an-issue
+        if issue.pull_request:
+            print("Skipping pull request: %s" % issue.id)
+            continue
         driver.get(issue.html_url)
         # Delete issue (sidebar)
         find_button = driver.find_element_by_xpath("//*[@class='details-reset details-overlay details-overlay-dark js-delete-issue']")
