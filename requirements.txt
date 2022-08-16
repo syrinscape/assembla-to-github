@@ -4,7 +4,7 @@
 #
 #    pip-compile
 #
--e git+https://github.com/EnricoMi/PyGithub.git@branch-throttled-requester#egg=pygithub
+-e git+https://github.com/syrinscape/PyGithub.git@branch-throttled-requester#egg=pygithub
     # via -r requirements.in
 async-generator==1.10
     # via
