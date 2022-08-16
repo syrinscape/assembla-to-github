@@ -1012,35 +1012,26 @@ def main():
     # Get issues one time only.
     issues = github_iter(repo.get_issues(state='all'))
     for ticket in sorted_tickets_array:
-        try:
-            issue_name = f"""{ticket["ticket_title"]}"""
-            lock = None
-            for check_issue in issues:
-                if check_issue and check_issue.title == issue_name:
-                    print("Issue exists; passing: [", check_issue.title, "]")
-                    lock = 1
-            if not lock:
-                while True:
-                    if len(issues) == int(ticket["ticket_number"]-1) or \
-                        len(issues) > int(ticket["ticket_number"]-1):
-                        break
-                    else:
-                        print(f"Creating dummy issue until {ticket['ticket_number']}: current counter is {len(issues)+1}")
-                        iss = repo.create_issue(title="null", body="null")
-                        issues.append(iss)
-                        iss.edit(state='closed')
-                        continue
-                issue = createIssue(issue_name, ticket, repo, file_links)
-                issues.append(issue)
-                addComments(ticket, issue, file_links, repo)
-        except RateLimitExceededException as e:
-            # wait 1 hour for rate limit
-            print(e, "Waiting 1 hour...")
-            sleep(60*61)
-            continue
-        except Exception as e:
-            print(e)
-            pass
+        issue_name = f"""{ticket["ticket_title"]}"""
+        lock = None
+        for check_issue in issues:
+            if check_issue and check_issue.title == issue_name:
+                print("Issue exists; passing: [", check_issue.title, "]")
+                lock = 1
+        if not lock:
+            while True:
+                if len(issues) == int(ticket["ticket_number"]-1) or \
+                    len(issues) > int(ticket["ticket_number"]-1):
+                    break
+                else:
+                    print(f"Creating dummy issue until {ticket['ticket_number']}: current counter is {len(issues)+1}")
+                    iss = repo.create_issue(title="null", body="null")
+                    issues.append(iss)
+                    iss.edit(state='closed')
+                    continue
+            issue = createIssue(issue_name, ticket, repo, file_links)
+            issues.append(issue)
+            addComments(ticket, issue, file_links, repo)
 
 if __name__ == "__main__":
     main()
