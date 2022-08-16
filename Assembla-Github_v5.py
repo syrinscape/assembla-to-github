@@ -147,8 +147,9 @@ def github_check_rate_limit(core=1, graphql=1, search=1):
             # Sleep until 1 second past the reset.
             sleep_time = reset_timestamp - calendar.timegm(time.gmtime()) + 1
             print(
-                "GitHub API rate limit nearly depleted. Sleeping for %s seconds. %r" % (
-                    sleep_time, limit
+                "GitHub API rate limit nearly depleted (%s/%s). Sleeping for %s "
+                "seconds. %r" % (
+                    required, limit.remaining, sleep_time, limit
                 )
             )
             time.sleep(sleep_time)
