@@ -178,13 +178,19 @@ val = {
 
 EXTS = [
     'docx',
+    'gif',
+    'gz',
     'jpeg',
     'jpg',
     'log',
+    'mov',
+    'mp4',
     'pdf',
     'png',
     'pptx',
+    'svg',
     'txt',
+    'xlsx',
     'zip',
 ]
 EXTS.extend(ext.upper() for ext in EXTS)
