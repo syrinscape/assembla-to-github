@@ -4,6 +4,8 @@
 #
 #    pip-compile
 #
+-e git+https://github.com/EnricoMi/PyGithub.git@branch-throttled-requester#egg=pygithub
+    # via -r requirements.in
 async-generator==1.10
     # via
     #   trio
@@ -51,8 +53,6 @@ pip-tools==6.4.0
     # via -r requirements.in
 pycparser==2.21
     # via cffi
-pygithub==1.55
-    # via -r requirements.in
 pyjwt==2.3.0
     # via pygithub
 pynacl==1.4.0

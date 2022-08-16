@@ -1,5 +1,5 @@
+-e git+https://github.com/EnricoMi/PyGithub.git@branch-throttled-requester#egg=pygithub
 pip-tools
-pygithub
 requests
 selenium
 webdriver_manager

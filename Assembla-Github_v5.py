@@ -17,7 +17,118 @@ from webdriver_manager.chrome import ChromeDriverManager
 from argparse import ArgumentParser
 from credentials import Credentials
 
-g = Github(Credentials.github_user, Credentials.github_password)
+
+# RETRY ON RATE LIMIT ##################################################################
+
+# See: https://github.com/PyGithub/PyGithub/issues/2113#issuecomment-1008288358
+
+import json
+import logging
+
+from github import GithubException
+from requests import Response
+from requests.models import CaseInsensitiveDict
+from requests.utils import get_encoding_from_headers
+from urllib3 import Retry, HTTPResponse
+from urllib3.exceptions import MaxRetryError
+
+# from publish.github_action import GithubAction
+
+logger = logging.getLogger(__name__)
+
+
+class GitHubRetry(Retry):
+    # gha: GithubAction = None
+
+    def __init__(self, **kwargs):
+        # if 'gha' in kwargs:
+        #     self.gha = kwargs['gha']
+        #     del kwargs['gha']
+
+        # 403 is too broad to be retried, but GitHub API signals rate limits via 403
+        # we retry 403 and look into the response header via Retry.increment
+        kwargs['status_forcelist'] = kwargs.get('status_forcelist', []) + [403]
+        super().__init__(**kwargs)
+
+    # def new(self, **kw):
+    #     retry = super().new(**kw)
+    #     # retry.gha = self.gha
+    #     return retry
+
+    def increment(self,
+                  method=None,
+                  url=None,
+                  response=None,
+                  error=None,
+                  _pool=None,
+                  _stacktrace=None):
+        if response:
+            logger.warning(f'Request {method} {url} failed: {response.reason}')
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f'Response headers:')
+                for field, value in response.headers.items():
+                    logger.debug(f'- {field}: {value}')
+
+            # we retry 403 only if there is a Retry-After header (indicating it is retry-able)
+            # or if the body message implies so
+            if response.status == 403:
+                # self.gha.warning(f'Request {method} {url} failed with 403: {response.reason}')
+                if 'Retry-After' in response.headers:
+                    logger.info(f'Retrying after {response.headers.get("Retry-After")} seconds')
+                else:
+                    logger.info(f'There is no Retry-After given in the response header')
+                    content = response.reason
+                    try:
+                        content = get_content(response, url)
+                        content = json.loads(content)
+                        message = content.get('message', '').lower()
+
+                        if (
+                            message.startswith('api rate limit exceeded')
+                            or message.endswith('please wait a few minutes before you try again.')
+                            or message.endswith('please retry your request again later.')
+                        ):
+                            logger.info('Response body indicates retry-able error')
+                            return super().increment(method, url, response, error, _pool, _stacktrace)
+
+                        logger.info('Response message does not indicate retry-able error')
+                    except MaxRetryError:
+                        raise
+                    except Exception as e:
+                        logger.warning('failed to inspect response message', exc_info=e)
+
+                    raise GithubException(response.status, content, response.headers)
+
+        return super().increment(method, url, response, error, _pool, _stacktrace)
+
+
+def get_content(resp: HTTPResponse, url: str):
+    # logic taken from HTTPAdapter.build_response (requests.adapters)
+    response = Response()
+
+    # Fallback to None if there's no status_code, for whatever reason.
+    response.status_code = getattr(resp, 'status', None)
+
+    # Make headers case-insensitive.
+    response.headers = CaseInsensitiveDict(getattr(resp, 'headers', {}))
+
+    # Set encoding.
+    response.encoding = get_encoding_from_headers(response.headers)
+    response.raw = resp
+    response.reason = response.raw.reason
+
+    response.url = url
+
+    return response.content
+
+# END RETRY ON RATE LIMIT ##############################################################
+
+
+retry = GitHubRetry(total=100,
+                    backoff_factor=1,
+                    allowed_methods=Retry.DEFAULT_ALLOWED_METHODS.union({'GET', 'POST'}),
+                    status_forcelist=list(range(500, 600)))
+g = Github(Credentials.github_user, Credentials.github_password, retry=retry)
 
 
 def github_check_rate_limit(core=1, graphql=1, search=1):
