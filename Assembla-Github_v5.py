@@ -193,7 +193,7 @@ EXTS = [
     'xlsx',
     'zip',
 ]
-EXTS.extend(ext.upper() for ext in EXTS)
+EXTS.extend(ext.upper() for ext in EXTS[:])
 # list of allowed extensions
 
 def every_downloads_chrome(driver):
