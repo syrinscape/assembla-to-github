@@ -1,3 +1,28 @@
+"""
+See: https://www.codeproject.com/Articles/5247083/Migrating-from-Assembla-to-Github-using-Automation
+
+Export .bak file from Assembla, then manual regexp find and replace:
+
+    ixc/syrinscape/(?=blame|blob|commit|compare|tree) -> syrinscape/syrinscape/
+
+Delete GitHub issues:
+
+    time python Assembla-Github_v5.py --delete --repo syrinscape/syrinscape
+
+Download files from Assembla:
+
+    time python Assembla-Github_v5.py --download --repo syrinscape/syrinscape
+
+Create GitHub issues:
+
+    time python Assembla-Github_v5.py --repo syrinscape/syrinscape
+
+Re-download files and update existing GitHub issues (e.g. after a new Assembla export):
+
+    time python Assembla-Github_v5.py --download --repo syrinscape/syrinscape --update
+
+"""
+
 import calendar
 import time
 
