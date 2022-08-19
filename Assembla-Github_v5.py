@@ -201,25 +201,26 @@ val = {
     "securedglobe": "c68pgUDuer4PiDacwqjQWU",
 }
 
+# Allowed extensions.
 EXTS = [
-    'docx',
-    'gif',
-    'gz',
-    'jpeg',
-    'jpg',
-    'log',
-    'mov',
-    'mp4',
-    'pdf',
-    'png',
-    'pptx',
-    'svg',
-    'txt',
-    'xlsx',
-    'zip',
+    ext.lower() for ext in [
+        'docx',
+        'gif',
+        'gz',
+        'jpeg',
+        'jpg',
+        'log',
+        'mov',
+        'mp4',
+        'pdf',
+        'png',
+        'pptx',
+        'svg',
+        'txt',
+        'xlsx',
+        'zip',
+    ]
 ]
-EXTS.extend(ext.upper() for ext in EXTS[:])
-# list of allowed extensions
 
 def every_downloads_chrome(driver):
     # waits for download to complete
@@ -235,25 +236,22 @@ def parseAttachmentsFromBak(sid, tickets):
     filelist = []
     link = f"https://bigfiles.assembla.com/spaces/{sid}/documents/download/"
     # get all attachments from .bak file
-    # save them in a separate list
-    if not os.path.isfile('filenames.txt'):
-        find_files = re.findall(r".*?\[\[(file|image):(.*?)(\|.*?)?\]\].*?", tickets)
-        for file in find_files:
-            if file:
-                filelist.append(rf"{file[1]}")
-    else:
-        dirfile = glob.glob(os.path.join(FILES_DIR, "**"))
-        with open("filenames.txt") as file:
-            for line in file:
-                filelist.append(line.strip())
-        for file in dirfile:
-            file = file.replace(FILES_DIR + os.path.sep)
-            file = file[:file.rfind(".")]
-            for c, fi in enumerate(filelist):
-                if fi in file:
-                    del filelist[c]
-                elif os.path.isfile(os.path.join(FILES_DIR, fi)):
-                    del filelist[c]
+    find_files = re.findall(r".*?\[\[(file|image):(.*?)(\|.*?)?\]\].*?", tickets)
+    for file in find_files:
+        if file:
+            filelist.append(rf"{file[1]}")
+    # Get all files already on disk.
+    dirfile = glob.glob(os.path.join(FILES_DIR, "**"))
+    for file in dirfile:
+        # Strip filename down to its base Assembla ID (no basedir, no extension).
+        file_id = file.replace(FILES_DIR + os.path.sep, '')
+        file_id = file_id[:file_id.rfind(".")]
+        # Remove from file list if we already have it on disk.
+        for c, fi in enumerate(filelist):
+            if fi in file_id:
+                del filelist[c]
+                print("Skip download for file already found on disk: %s" % file)
+                break
     chrome_options = webdriver.ChromeOptions()
     path = os.path.abspath(".")
     chrome_options.add_experimental_option("prefs", {
@@ -322,26 +320,16 @@ def parseAttachmentsFromBak(sid, tickets):
             pass
         sleep(8)
         temps = glob.glob(os.path.join("temp", "**"))
-        try:
-            for tm in temps:
-                if tm.endswith('jpg'):
-                    os.rename(tm, os.path.join("files", f"{file}.jpg"))
-                elif tm.endswith('jpeg'):
-                    os.rename(tm, os.path.join("files", f"{file}.jpeg"))
-                elif tm.endswith('png'):
-                    os.rename(tm, os.path.join("files", f"{file}.png"))
-                elif tm.endswith('zip'):
-                    os.rename(tm, os.path.join("files", f"{file}.zip"))
-                elif tm.endswith('pdf'):
-                    os.rename(tm, os.path.join("files", f"{file}.pdf"))
-                elif tm.endswith('docx'):
-                    os.rename(tm, os.path.join("files", f"{file}.docx"))
-                elif tm.endswith('txt'):
-                    os.rename(tm, os.path.join("files", f"{file}.txt"))
-                else:
-                    os.rename(tm, os.path.join("files", file))
-        except FileExistsError:
-            pass
+        for tm in temps:
+            for ext in EXTS:
+                try:
+                    if tm.lower().endswith(ext):
+                        os.rename(tm, os.path.join("files", f"{file}.{ext}"))
+                    else:
+                        print(f"Renaming file with no extension: {tm} -> {file}")
+                        os.rename(tm, os.path.join("files", file))
+                except FileExistsError:
+                    pass
     driver.close()
     driver.quit()
 
