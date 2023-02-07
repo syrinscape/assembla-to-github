@@ -11,25 +11,25 @@ Update `settings.py`.
 Delete GitHub issues:
 
 ```shell
-time python Assembla-Github_v5.py --delete --repo org/repo
+time python Assembla_Github_v5.py --delete --repo org/repo
 ```
 
 Download files from Assembla:
 
 ```shell
-time python Assembla-Github_v5.py --download
+time python Assembla_Github_v5.py --download
 ```
 
 Rename downloaded files from Assembla:
 
 ```shell
-time python Assembla-Github_v5.py --rename
+time python Assembla_Github_v5.py --rename
 ```
 
 Upload downloaded files to GitHub:
 
 ```shell
-time python Assembla-Github_v5.py --upload --repo org/repo
+time python Assembla_Github_v5.py --upload --repo org/repo
 ```
 
 NOTE: GitHub will randomly complain that "Something went really wrong..." Just wait a
@@ -41,11 +41,11 @@ cannot be uploaded to GitHub will be linked to there.
 Create GitHub issues:
 
 ```shell
-time python Assembla-Github_v5.py --repo org/repo
+time python Assembla_Github_v5.py --repo org/repo
 ```
 
 Update existing GitHub issues (e.g. after a new Assembla export):
 
 ```shell
-time python Assembla-Github_v5.py --update --repo org/repo
+time python Assembla_Github_v5.py --update --repo org/repo
 ```
