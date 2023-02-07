@@ -3,6 +3,7 @@ See: https://www.codeproject.com/Articles/5247083/Migrating-from-Assembla-to-Git
 
 Export .bak file from Assembla, then manual regexp find and replace:
 
+    # Replace IC repo with Syrinscape repo.
     ixc/syrinscape/(?=blame|blob|commit|compare|tree) -> syrinscape/syrinscape/
 
 Delete GitHub issues:
