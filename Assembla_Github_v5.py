@@ -661,11 +661,11 @@ def get_files_with_ref(files, bak_refs):
     return files_with_ref
 
 
-def uploadToSyrinscape(files, bak_refs):
+def uploadToSelfHosted(files, bak_refs):
     ready_files = ""
     files_with_ref = get_files_with_ref(files, bak_refs)
     if not files_with_ref:
-        print("uploadToSyrinscape(): Nothing to upload.")
+        print("uploadToSelfHosted(): Nothing to upload.")
         return ready_files
     for file in files_with_ref:
         # TODO: Upload.
@@ -1024,9 +1024,9 @@ def main():
         exit(0)
 
     if args["upload"]:
-        # Get files for upload to GitHub and Syrinscape.
+        # Get files for upload to GitHub and self hosted.
         files_for_github = []
-        files_for_syrinscape = []
+        files_for_self_hosted = []
         for file in os.listdir(FILES_DIR):
             if os.path.isfile(os.path.join(FILES_DIR, file)):
                 size = os.path.getsize(os.path.join(FILES_DIR, file))
@@ -1039,15 +1039,15 @@ def main():
                 if to_github:
                     files_for_github.append(file)
                 else:
-                    files_for_syrinscape.append(file)
+                    files_for_self_hosted.append(file)
         # Upload files to GitHub.
         if os.path.isfile('files.txt') and os.path.getsize('files.txt'):
             i = input("files.txt exists and is not empty. If you are going to use new github repo, remove it. Remove? YES/NO\n")
             if i == 'YES' or i == 'Y' or i == 'y' or i == 'yes':
                 os.remove(f"files.txt")
         ready_files = uploadToGithub(files_for_github, bak_refs, working_repo)
-        # Upload files to Syrinscape.
-        ready_files += uploadToSyrinscape(files_for_syrinscape, bak_refs)
+        # Upload files to self hosted.
+        ready_files += uploadToSelfHosted(files_for_self_hosted, bak_refs)
         exit(0)
     elif os.path.isfile('files.txt'):
         with open('files.txt') as files_txt:

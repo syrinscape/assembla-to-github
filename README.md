@@ -11,7 +11,7 @@ Update `settings.py`.
 Delete GitHub issues:
 
 ```shell
-time python Assembla-Github_v5.py --delete --repo syrinscape/syrinscape
+time python Assembla-Github_v5.py --delete --repo org/repo
 ```
 
 Download files from Assembla:
@@ -29,7 +29,7 @@ time python Assembla-Github_v5.py --rename
 Upload downloaded files to GitHub:
 
 ```shell
-time python Assembla-Github_v5.py --upload --repo syrinscape/syrinscape
+time python Assembla-Github_v5.py --upload --repo org/repo
 ```
 
 NOTE: GitHub will randomly complain that "Something went really wrong..." Just wait a
@@ -41,11 +41,11 @@ cannot be uploaded to GitHub will be linked to there.
 Create GitHub issues:
 
 ```shell
-time python Assembla-Github_v5.py --repo syrinscape/syrinscape
+time python Assembla-Github_v5.py --repo org/repo
 ```
 
 Update existing GitHub issues (e.g. after a new Assembla export):
 
 ```shell
-time python Assembla-Github_v5.py --update --repo syrinscape/syrinscape
+time python Assembla-Github_v5.py --update --repo org/repo
 ```
