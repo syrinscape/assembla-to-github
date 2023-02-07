@@ -1096,6 +1096,7 @@ def main():
     repo = g.get_repo(working_repo)
 
     # Get commits one time only.
+    github_check_rate_limit()
     COMMITS = github_iter(repo.get_commits())
 
     print("Using repo: ", repo)
