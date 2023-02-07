@@ -1,0 +1,6 @@
+# http://editorconfig.org
+
+root = true
+
+[Assembla-Github_v5.py]
+end_of_line = crlf
