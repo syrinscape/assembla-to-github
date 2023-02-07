@@ -154,7 +154,7 @@ retry = GitHubRetry(total=100,
                     backoff_factor=1,
                     allowed_methods=Retry.DEFAULT_ALLOWED_METHODS.union({'GET', 'POST'}),
                     status_forcelist=list(range(500, 600)))
-g = Github(Credentials.github_user, Credentials.github_password, retry=retry)
+g = Github(Credentials.github_user, Credentials.github_token, retry=retry)
 
 
 def github_check_rate_limit(core=1, graphql=1, search=1):
