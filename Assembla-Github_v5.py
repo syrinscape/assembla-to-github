@@ -11,15 +11,26 @@ Delete GitHub issues:
 
 Download files from Assembla:
 
-    time python Assembla-Github_v5.py --download --repo syrinscape/syrinscape
+    time python Assembla-Github_v5.py --download
+
+Rename downloaded files from Assembla:
+
+    time python Assembla-Github_v5.py --rename
+
+Upload downloaded files to GitHub:
+
+    time python Assembla-Github_v5.py --upload --repo syrinscape/syrinscape
+
+NOTE: GitHub will randomly complain that "Something went really wrong..." Just wait a
+while and try again. It appears to be an undocumented rate limit.
 
 Create GitHub issues:
 
     time python Assembla-Github_v5.py --repo syrinscape/syrinscape
 
-Re-download files and update existing GitHub issues (e.g. after a new Assembla export):
+Update existing GitHub issues (e.g. after a new Assembla export):
 
-    time python Assembla-Github_v5.py --download --repo syrinscape/syrinscape --update
+    time python Assembla-Github_v5.py --update --repo syrinscape/syrinscape
 
 """
 
