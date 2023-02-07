@@ -29,7 +29,7 @@ import time
 
 from github import Github
 from github.GithubException import RateLimitExceededException
-import ast, os, re, sys, glob, io, requests, zipfile
+import ast, os, sys, glob, io, requests, zipfile
 from sys import exit
 from time import sleep
 from datetime import datetime
@@ -42,6 +42,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 from argparse import ArgumentParser
 from credentials import Credentials
+import regex as re
 
 
 # RETRY ON RATE LIMIT ##################################################################
@@ -196,6 +197,111 @@ def github_iter(seq):
 
 COMMITS = []
 FILES_DIR = "files"
+
+
+# Regexp substitutions to be performed in sequence to make Assembla formatted text
+# compatible with GitHub Flavoured Markdown.
+RE_SUB_LIST = dict(
+    (
+        # Replace unicode angle brackets with ascii, to make the following regexps easier.
+        (r"\u003c", r"<"),
+        (r"\u003e", r">"),
+
+        # Fix invalid closing tag(s).
+        (r"<\\", r"</"),
+
+        # Fix invalid file link.
+        (r"(?<!\[)file:aqN1LyirOr5ioYacwqjQXA", r"[[file:aqN1LyirOr5ioYacwqjQXA.zip]]"),
+
+        # Convert opening and closing <pre> and <code> tags to distinctive unicode
+        # characters so we can use them in regexp character classes below.
+        (r"<pre>", r"¢"),
+        (r"</pre>", r"µ"),
+        (r"<code>", r"±"),
+        (r"</code>", r"¾"),
+
+        # Add backtics to HTML tags appearing outside preformatted and inline code
+        # blocks because GitHub won't escape them.
+        (r"""
+            (?sx)               # Multiline, verbose
+            (?:                 # Non-caturing group
+                (?<![¢±].*)     # Look behind to NOT find <pre> or <code>
+                |               # OR
+                (?<=[¾µ][^¢±]*) # Look behind to find </code> or </pre> NOT followed by
+                                # <pre> or <code>
+            )
+            (?<!`)              # Look behind to NOT find a backtic
+            (<[^>]+>)           # Capture any HTML tag
+            (?!`)               # Look ahead to NOT find a backtic
+        """, r"`\1`"),
+
+        # Replace <code> tags with backtics for inline code blocks (not fenced code
+        # blocks) because GitHub won't escape them.
+        (r"(?<!¢)±([^¾\n]+)¾?", r"`\1`"),
+
+        # Convert opening and closing pre/code tags back to their original form.
+        (r"¢", r"<pre>"),
+        (r"µ", r"</pre>"),
+        (r"±", r"<code>"),
+        (r"¾", r"</code>"),
+
+        # Add fences to preformatted code blocks because GitHub won't escape them.
+        (r"(\n| )*<pre>(\n| )*(<code>(\n)*)?", r"\n\n```\n"),
+        (r"((\n)*</code>)?(\n| )*</pre>(\n| )*", r"\n```\n\n"),
+
+        # Replace gremlins.
+        (r" ", r" "),         # Space
+        (r"‎", r""),   # Empty string
+        (r"‪", r"["),  # Open bracket
+        (r"‬", r"]"),  # Close bracket
+        (r"–", r"-"),         # Dash
+        (r"[‘’]", r"'"),      # Single quote
+        (r"[“”]", r'"'),      # Double quote
+    )
+)
+
+
+def assembla_to_gfm(text):
+    reserved = re.search(r"[¢µ±¾]", text)
+    assert not reserved, (
+        f"Found reserved unicode character {reserved.group()} in text: {text}"
+    )
+    for pat, sub in RE_SUB_LIST.items():
+        text = re.sub(pat, sub, text)
+    return text
+
+
+before = """
+An <h1> on its own, and <code>an inline code block with <b>bold <i>and italic</i></b> text</code>, <i>and</i> <pre>a <i>preformatted</i> block</pre> <b>and</b> <pre><code>
+
+a preformatted
+<i>code block</i>
+
+</code></pre> and an <i>unclosed</i> <pre><code>preformatted <b>code block</b>
+"""
+
+after = """
+An `<h1>` on its own and `an inline code block with <b>bold <i>and italic</i></b> text`, `<i>`and`</i>`
+
+```
+a <i>preformatted</i> block
+```
+
+`<b>`and`</b>`
+
+```
+a preformatted
+<i>code block</i>
+```
+
+and an `<i>`unclosed`</i>`
+
+```
+preformatted <b>code block</b>
+"""
+
+# assert assembla_to_gfm(before) == after, "Regexp test failure."
+
 
 val = {
 # add here your user and space_id of each contributor separated with a comma - for example
@@ -379,9 +485,9 @@ def parseTickets(tickets):
             "ticket_number": array[1],
             "ticket_reporter_id": array[2],
             "ticket_assigned_id": array[3],
-            "ticket_title": array[5],
+            "ticket_title": assembla_to_gfm(array[5]),
             "ticket_priority": array[6],
-            "ticket_description": array[7],
+            "ticket_description": assembla_to_gfm(array[7]),
             "ticket_created_on": array[8],
             "ticket_milestone": array[10],
             "ticket_username": None,
@@ -410,7 +516,7 @@ def parseTickets(tickets):
                 "user_id": array[2],
                 "created_on": array[3],
                 "updated_at": array[4],
-                "comment": array[5],
+                "comment": assembla_to_gfm(array[5]),
                 "ticket_changes": array[6],
                 "rendered": array[7],
                 "attachments": [],

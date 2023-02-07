@@ -93,6 +93,8 @@ pynacl==1.4.0
     # via pygithub
 pyopenssl==21.0.0
     # via urllib3
+regex==2022.8.17
+    # via -r requirements.in
 requests==2.26.0
     # via
     #   -r requirements.in
