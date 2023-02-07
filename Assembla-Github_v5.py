@@ -407,7 +407,7 @@ def parseAttachmentsFromBak(sid, tickets):
     "download.default_directory": os.path.join(path, "temp"),
     "download.prompt_for_download": False,
     "download.directory_upgrade": True,
-    "safebrowsing.enabled": True
+    "safebrowsing.enabled": False,
     })
     chrome_options.add_argument("user-data-dir=selenium")
     chrome_options.add_argument("start-maximized")
