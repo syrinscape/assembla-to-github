@@ -24,6 +24,9 @@ Upload downloaded files to GitHub:
 NOTE: GitHub will randomly complain that "Something went really wrong..." Just wait a
 while and try again. It appears to be an undocumented rate limit.
 
+Copy the `data/files` directory to a location accessible via `FILES_URL`. Any files that
+cannot be uploaded to GitHub will be linked to there.
+
 Create GitHub issues:
 
     time python Assembla-Github_v5.py --repo syrinscape/syrinscape
@@ -208,6 +211,7 @@ def github_iter(seq):
 
 COMMITS = []
 FILES_DIR = "files"
+FILES_URL = "https://files.syrinscape.com/"
 
 
 # Regexp substitutions to be performed in sequence to make Assembla formatted text
@@ -350,26 +354,33 @@ val = {
     'timjmansfield': 'chrW-oQZKr5jJcdmr6bg7m',
 }
 
+KB = 1000
+MB = KB * 1000
+
 # Allowed extensions.
-EXTS = [
-    ext.lower() for ext in [
-        'docx',
-        'gif',
-        'gz',
-        'jpeg',
-        'jpg',
-        'log',
-        'mov',
-        'mp4',
-        'pdf',
-        'png',
-        'pptx',
-        'svg',
-        'txt',
-        'xlsx',
-        'zip',
-    ]
-]
+EXTS = {
+    '.docx': 25 * MB,
+    '.gif': 10 * MB,
+    '.gz': 25 * MB,
+    '.jpeg': 10 * MB,
+    '.jpg': 10 * MB,
+    '.log': 25 * MB,
+    '.mov': 10 * MB,
+    '.mp4': 10 * MB,
+    '.pdf': 25 * MB,
+    '.png': 10 * MB,
+    '.pptx': 25 * MB,
+    '.svg': 10 * MB,
+    '.txt': 25 * MB,
+    '.xlsx': 25 * MB,
+    '.zip': 25 * MB,
+}
+
+# Map extensions with alternate spellings to the canonical version.
+EXTS_MAP = {
+    '.jpeg': '.jpg',
+}
+
 
 def every_downloads_chrome(driver):
     # waits for download to complete
@@ -381,26 +392,16 @@ def every_downloads_chrome(driver):
             return items.map(e => e.fileUrl || e.file_url);
         """)
 
-def parseAttachmentsFromBak(sid, tickets):
-    filelist = []
-    link = f"https://bigfiles.assembla.com/spaces/{sid}/documents/download/"
-    # get all attachments from .bak file
-    find_files = re.findall(r".*?\[\[(file|image):(.*?)(\|.*?)?\]\].*?", tickets)
-    for file in find_files:
-        if file:
-            filelist.append(rf"{file[1]}")
-    # Get all files already on disk.
-    dirfile = glob.glob(os.path.join(FILES_DIR, "**"))
-    for file in dirfile:
-        # Strip filename down to its base Assembla ID (no basedir, no extension).
-        file_id = file.replace(FILES_DIR + os.path.sep, '')
-        file_id = file_id[:file_id.rfind(".")]
-        # Remove from file list if we already have it on disk.
-        for c, fi in enumerate(filelist):
-            if fi in file_id:
-                del filelist[c]
-                print("Skip download for file already found on disk: %s" % file)
-                break
+
+def parseAttachmentsFromBak(space_id, bak_refs):
+    """
+    Download refs in the `.bak` file.
+    """
+    link = f"https://bigfiles.assembla.com/spaces/{space_id}/documents/download/"
+    existing = [get_file_id(item) for item in glob.glob(os.path.join(FILES_DIR, "**"))]
+    files_to_download = [item for item in bak_refs if item not in existing]
+    skipped = len(set(bak_refs)) - len(files_to_download)
+    print("Skipping download for %s existing files." % skipped)
     chrome_options = webdriver.ChromeOptions()
     path = os.path.abspath(".")
     chrome_options.add_experimental_option("prefs", {
@@ -432,9 +433,14 @@ def parseAttachmentsFromBak(sid, tickets):
         btn = driver.find_element_by_id("signin_button")
         btn.click()
         sleep(1)
-
-    for file in filelist:
-        # fetch all files from the filelist
+    print(
+        "Attempting to download %s files:\n  %s" % (
+            len(files_to_download), "\n  ".join(files_to_download)
+        )
+    )
+    for file in files_to_download:
+        file_id = get_file_id(file)
+        # fetch all files from the files_to_download
         download_script = f"""
             return fetch('{file}',
                 {{
@@ -467,18 +473,22 @@ def parseAttachmentsFromBak(sid, tickets):
             pass
         except JavascriptException:
             pass
-        sleep(8)
-        temps = glob.glob(os.path.join("temp", "**"))
-        for tm in temps:
-            for ext in EXTS:
-                try:
-                    if tm.lower().endswith(ext):
-                        os.rename(tm, os.path.join("files", f"{file}.{ext}"))
-                    else:
-                        print(f"Renaming file with no extension: {tm} -> {file}")
-                        os.rename(tm, os.path.join("files", file))
-                except FileExistsError:
-                    pass
+        while True:
+            sleep(8)
+            crdownload_files = glob.glob(os.path.join("temp", "*.crdownload"))
+            if not glob.glob(os.path.join("temp", "*.crdownload")):
+                break
+            print("Still downloading: %r" % crdownload_files)
+        for temp_file in glob.glob(os.path.join("temp", "**")):
+            temp_ext = get_extension(temp_file)
+            dst = os.path.join(FILES_DIR, f"{file_id}{temp_ext}")
+            print(f"Renaming file: {temp_file} -> {dst}")
+# Renaming file: temp/Screen Recording 2022-07-24 at 12.35.01 pm.mov.crdownload -> files/b4RjhicVOr7yk1bK8JiBFu.35.01 pm.mov.crdownload
+            try:
+                os.remove(dst)
+            except FileNotFoundError:
+                pass
+            os.rename(temp_file, dst)
     driver.close()
     driver.quit()
 
@@ -625,76 +635,93 @@ def renameFiles(sorted_tickets_array):
         for comment in item["ticket_comments"]:
             if comment["attachments"]:
                 for attach in comment["attachments"]:
-                    fname = attach["filename"]
-                    fid = attach["file_id"]
-                    if not re.search(r"\.(jpe?g|png)$", fname.lower()):
-                        dot = re.search(r"\..*", fname)
-                        dot = "" if not dot else dot.group(0)
+                    file_id = attach["file_id"]
+                    filename = attach["filename"]
+                    # Get file with extension.
+                    try:
+                        file = glob.glob(os.path.join(FILES_DIR, f"{file_id}.*"))[0]
+                    except IndexError:
+                        # Fallback to get file without extension.
                         try:
-                            get_file = glob.glob(os.path.join(FILES_DIR, f"{fid}.*"))
-                            if not get_file:
-                                get_file = glob.glob(os.path.join(FILES_DIR, fid))
-                            get_dot = re.search(r"\..*", get_file[0])
-                            get_dot = "" if not get_dot else get_dot.group(0)
-                            if get_dot and not dot:
-                                dot = get_dot
-                            if re.search(r"\.(jpe?g|png)$", get_dot.lower()):
-                                pass
-                            else:
-                                if os.path.isfile(os.path.join(FILES_DIR, f"{fid}{dot}")):
-                                    pass
-                                else:
-                                    print(f"Renaming: {fid} -> {fid}{dot}")
-                                    os.rename(get_file[0], os.path.join(FILES_DIR, f"{fid}{dot}"))
-                                counter = 0
-                                for ext in EXTS:
-                                    if ext not in dot:
-                                        counter += 1
-                                    else:
-                                        pass
-                                if counter == len(EXTS) and not get_file[0].endswith(".htm"):
-                                    # not attachable
-                                    print(f"Making zip file -> {fid}.zip")
-                                    if os.path.isfile(os.path.join(FILES_DIR, f"{fid}.zip")):
-                                        os.remove(os.path.join(FILES_DIR, f"{fid}.zip"))
-                                    obj = zipfile.ZipFile(os.path.join(FILES_DIR, f"{fid}.zip"), 'w')
-                                    obj.write(os.path.join(FILES_DIR, f"{fid}{dot}"))
-                                    obj.close()
-                        except Exception:
-                            pass # doesn't exist
+                            file = glob.glob(os.path.join(FILES_DIR, f"{file_id}"))[0]
+                        except IndexError:
+                            print(f"Not found file_id: {file_id}, filename: {filename}")
+                            continue
+                    file_ext = get_extension(file)
+                    filename_ext = get_extension(filename) or file_ext
+                    dst = os.path.join(FILES_DIR, f"{file_id}{filename_ext}")
+                    if file == dst:
+                        continue  # Nothing to do
+                    try:
+                        os.remove(dst)
+                    except FileNotFoundError:
+                        pass
+                    print(f"Renaming file: {file} -> {dst}")
+                    os.rename(file, dst)
 
 
-def uploadToGithub(dirfiles, tickets, working_repo):
-    filelist = []
-    ready_files = ""
-    path = os.path.abspath(".")
-    # filter attachments from .bak file to remove attachments not allowed or not existing
-    find_files = re.findall(r".*?\[\[(file|image):(.*?)(\|.*?)?\]\].*?", tickets)
+def get_extension(filename):
+    """
+    Return canonical version of known extensions, or everything after the first dot.
+    """
+    _, ext = os.path.splitext(filename.lower())
+    return EXTS_MAP.get(ext, ext)
 
-    for file in find_files:
-        for dr in dirfiles:
-            di = str(dr.replace(FILES_DIR + os.path.sep, ""))
-            di = di[:di.rfind('.')]
-            if di in file[1]:
-                filelist.append(os.path.join(path, FILES_DIR, dr))
+
+def get_file_id(filename):
+    """
+    Strip extension from basename to return Assembla ID.
+    """
+    return re.sub(r"\..*", "", os.path.basename(filename))
+
+
+def get_files_with_ref(files, bak_refs):
+    """
+    Return a filtered list of files with matching refs in the `.bak` file.
+    Skip existing in `files.txt`.
+    """
+    files_with_ref = []
+    # Get existing.
+    existing = set()
     if os.path.isfile('files.txt'):
-        print('files.txt exists, parsing existing links...')
-        ex_files = ""
-        # check for existing links and remove duplicates
-        with open('files.txt', 'r') as file:
-            ex_files = file.read()
-        file_links = re.findall(r".*?\!\[(.*?)\]\((.*?)\).*?", ex_files)
-        file_urls = re.findall(r".*?\[(.*?)\]\((.*?)\).*?", ex_files)
-        get_img = re.findall(r"alt=\"(.*?)\"\ssrc=\"(.*?)\"", ex_files)
-        file_links.extend(get_img)
-        file_links.extend(file_urls)
-        for flink in file_links:
-            for co, fi in enumerate(filelist):
-                if flink[0] in fi:
-                    del filelist[co]
-    if not filelist:
-        print("uploadToGithub: Nothing to upload.")
-        return 1
+        with open('files.txt', 'r') as files_txt:
+            files_txt = files_txt.read()
+        existing.update(re.findall(r'\[(.*?)\]', files_txt))
+        existing.update(re.findall(r'alt="(.*?)"', files_txt))
+    existing = [get_file_id(item) for item in existing]
+    # Get files with a matching ref. Skip existing.
+    for file in files:
+        file_id = get_file_id(file)
+        if file_id in existing:
+            continue
+        if file_id in bak_refs:
+            files_with_ref.append(os.path.join(os.path.abspath(FILES_DIR), file))
+    return files_with_ref
+
+
+def uploadToSyrinscape(files, bak_refs):
+    ready_files = ""
+    files_with_ref = get_files_with_ref(files, bak_refs)
+    if not files_with_ref:
+        print("uploadToSyrinscape(): Nothing to upload.")
+        return ready_files
+    for file in files_with_ref:
+        # TODO: Upload.
+        basename = os.path.basename(file)
+        url = f'{FILES_URL}{basename}'
+        line = f'[{basename}]({url})\n'
+        with open('files.txt', 'a+') as files_txt:
+            files_txt.write(line)
+        ready_files += line
+    return ready_files
+
+
+def uploadToGithub(files, bak_refs, working_repo):
+    ready_files = ""
+    files_with_ref = get_files_with_ref(files, bak_refs)
+    if not files_with_ref:
+        print("uploadToGithub(): Nothing to upload.")
+        return ready_files
     # launch selenium to upload attachments to github camo
     chrome_options = Options()
     chrome_options.add_argument("user-data-dir=selenium")
@@ -724,8 +751,8 @@ def uploadToGithub(dirfiles, tickets, working_repo):
     findButton = driver.find_elements_by_xpath("//*[@class='btn btn-primary']")
     findButton[0].click()
     sleep(2)
-    # split filelist into chunks of 2 files
-    chunks = [filelist[i:i + 2] for i in range(0, len(filelist), 2)]
+    # split files_with_ref into chunks of 2 files
+    chunks = [files_with_ref[i:i + 2] for i in range(0, len(files_with_ref), 2)]
     for chunk in chunks:
         chk = (' \n ').join(chunk)
         findBody = driver.find_element_by_id("issue_body")
@@ -933,13 +960,24 @@ def main():
     global COMMITS
 
     ap = ArgumentParser()
-    ap.add_argument("-r", "--repo", required=True, help="Working repository in format user/repo")
-    ap.add_argument("-re", "--rename", required=False, action='store_true',
-    help="Rename files in the directory according to their extensions and unique ids; pack them to zip.")
-    ap.add_argument("-d", "--download", required=False, action='store_true',
-    help="Download files from Assembla space. Rename files in the directory according to their extensions and unique ids; pack them to zip.")
-    ap.add_argument("-u", "--update", required=False, action='store_true')
-    ap.add_argument("-del", "--delete", required=False, action='store_true')
+    ap.add_argument("--delete", required=False, action='store_true')
+    ap.add_argument(
+        "--download",
+        action='store_true',
+        help="Download files from Assembla.",
+        required=False,
+    )
+    ap.add_argument(
+        "--rename",
+        action='store_true',
+        help="Rename files in the directory according to their extensions and id.",
+        required=False,
+    )
+    ap.add_argument(
+        "--repo", help="GitHub repository in user/repo format", required=False
+    )
+    ap.add_argument("--update", action='store_true', required=False)
+    ap.add_argument("--upload", action='store_true', required=False)
     args = vars(ap.parse_args())
     tickets = None
 
@@ -1001,20 +1039,59 @@ def main():
     # link statuses to tickets
     sorted_tickets_array, sorted_status_array = linkStatus(sorted_tickets_array, sorted_status_array, tickets)
 
+    # Get file refs from .bak file.
+    bak_refs = [
+        get_file_id(item) for item in re.findall(
+            r"\[\[(?:file|image):(.*?)(?:\|.*?)?\]\]", tickets
+        )
+    ]
+
     if args["download"]:
         find_assembla_space = re.search(r'tickets,\s\[\d+,\d+,[\"\d\w\-\_]+,[\"\d\w\-\_]+,\"([\d\w\-\_]+)\"', tickets)
-        assembla_id = find_assembla_space.group(1)
+        space_id = find_assembla_space.group(1)
         print("Using assembla space ID: ", find_assembla_space.group(1))
-        parseAttachmentsFromBak(assembla_id, tickets)
+        parseAttachmentsFromBak(space_id, bak_refs)
         print("Done fetching attachments.")
-        renameFiles(sorted_tickets_array)
-        print("Done renaming.")
+        exit(0)
 
     if args["rename"]:
         renameFiles(sorted_tickets_array)
         print("Done renaming.")
         exit(0)
 
+    if args["upload"]:
+        # Get files for upload to GitHub and Syrinscape.
+        files_for_github = []
+        files_for_syrinscape = []
+        for file in os.listdir(FILES_DIR):
+            if os.path.isfile(os.path.join(FILES_DIR, file)):
+                size = os.path.getsize(os.path.join(FILES_DIR, file))
+                to_github = False
+                for ext, size_limit in EXTS.items():
+                    if file.lower().endswith(ext.lower()):
+                        if size < size_limit:
+                            to_github = True
+                        break
+                if to_github:
+                    files_for_github.append(file)
+                else:
+                    files_for_syrinscape.append(file)
+        # Upload files to GitHub.
+        if os.path.isfile('files.txt') and os.path.getsize('files.txt'):
+            i = input("files.txt exists and is not empty. If you are going to use new github repo, remove it. Remove? YES/NO\n")
+            if i == 'YES' or i == 'Y' or i == 'y' or i == 'yes':
+                os.remove(f"files.txt")
+        ready_files = uploadToGithub(files_for_github, bak_refs, working_repo)
+        # Upload files to Syrinscape.
+        ready_files += uploadToSyrinscape(files_for_syrinscape, bak_refs)
+        exit(0)
+    elif os.path.isfile('files.txt'):
+        with open('files.txt') as files_txt:
+            ready_files = files_txt.read()
+    else:
+        ready_files = ""
+
+    # Get repo.
     github_check_rate_limit()
     repo = g.get_repo(working_repo)
 
@@ -1022,47 +1099,6 @@ def main():
     COMMITS = github_iter(repo.get_commits())
 
     print("Using repo: ", repo)
-
-    # get list of available files for transfer
-    dirfiles = []
-    # filter attachments by allowed extensions in github issues
-    dirfile = []
-    for (_, _, filenames) in os.walk(f"{FILES_DIR}"):
-        dirfile.extend(filenames)
-        break
-    for dr in dirfile:
-        for ext in EXTS:
-            if dr.endswith(ext):
-                dirfiles.append(dr)
-
-    ready_files = ""
-
-    if not os.path.isfile('files.txt'):
-        ready_files = uploadToGithub(dirfiles, tickets, working_repo)
-        if ready_files == 1:
-            print("No files to parse.")
-        pass
-    else:
-        with open('files.txt', 'r') as file:
-            ready_files = file.read()
-        if len(ready_files) != 0:
-            while True:
-                i = input("files.txt exists and is not empty. If you are going to use new github repo, remove it. Remove? YES/NO\n")
-                if i == 'YES' or i == 'Y' or i == 'y' or i == 'yes':
-                    os.remove(f"files.txt")
-                    ready_files = uploadToGithub(dirfiles, tickets, working_repo)
-                    if ready_files == 1:
-                        print("No files to parse.")
-                    break
-                else:
-                    ready_files = uploadToGithub(dirfiles, tickets, working_repo)
-                    if ready_files == 1:
-                        print("No new files to parse.")
-                    break
-        else:
-            ready_files = uploadToGithub(dirfiles, tickets, working_repo)
-            if ready_files == 1:
-                print("No files to parse.")
 
     if args["update"]:
         print("Updating existing tickets...")
