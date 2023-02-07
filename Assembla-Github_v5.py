@@ -735,12 +735,12 @@ def uploadToGithub(dirfiles, tickets, working_repo):
         if chk:
             findButton.send_keys(chk)
         print("Waiting for uploads to finish...")
-        sleep(5)
+        sleep(1)
         while True:
             chk = findBody.get_attribute('value')
             # [Uploading czo0qWjmmr5PZcdmr6CpXy.zip…]()
             if "]()" in chk:
-                sleep(5)
+                sleep(1)
             else:
                 break
         # dump ready links with attachments to a separate file
