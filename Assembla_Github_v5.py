@@ -17,7 +17,7 @@ from selenium.common.exceptions import WebDriverException, TimeoutException, NoS
 from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 from argparse import ArgumentParser
-from credentials import Credentials
+from settings import Settings
 import regex as re
 
 
@@ -173,7 +173,7 @@ def github_iter(seq):
 
 COMMITS = []
 FILES_DIR = "files"
-FILES_URL = "https://files.syrinscape.com/"
+FILES_URL = Settings.files_url
 
 
 # Regexp substitutions to be performed in sequence to make Assembla formatted text
