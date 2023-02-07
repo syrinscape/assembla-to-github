@@ -752,6 +752,8 @@ def uploadToGithub(files, bak_refs, working_repo):
     findButton[0].click()
     sleep(2)
     # split files_with_ref into chunks of 2 files
+    # TODO: Chunk size 1 to try and avoid "Something went really wrong, and we can't
+    # process that file. Try again." error? Detect that error and actually try again?
     chunks = [files_with_ref[i:i + 2] for i in range(0, len(files_with_ref), 2)]
     for chunk in chunks:
         chk = (' \n ').join(chunk)
