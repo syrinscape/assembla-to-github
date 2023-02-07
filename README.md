@@ -2,6 +2,10 @@
 
 See: https://www.codeproject.com/Articles/5247083/Migrating-from-Assembla-to-Github-using-Automation
 
+## Setup
+
+Update `settings.py`.
+
 ## How to use
 
 Delete GitHub issues:
