@@ -1,6 +1,8 @@
 # Assembla to GitHub
 
-See: https://www.codeproject.com/Articles/5247083/Migrating-from-Assembla-to-Github-using-Automation
+This is a fork of the Assembla to GitHub project originally found at: <https://www.codeproject.com/Articles/5247083/Migrating-from-Assembla-to-Github-using-Automation>
+
+It includes many bug fixes, enhancements, and updates that were required due to GitHub API changes.
 
 ## Setup
 
