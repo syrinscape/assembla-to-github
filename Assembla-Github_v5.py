@@ -24,6 +24,7 @@ Re-download files and update existing GitHub issues (e.g. after a new Assembla e
 """
 
 import calendar
+import ipdb
 import time
 
 from github import Github
@@ -1022,4 +1023,5 @@ def main():
             addComments(ticket, issue, file_links, repo)
 
 if __name__ == "__main__":
-    main()
+    with ipdb.launch_ipdb_on_exception():
+        main()

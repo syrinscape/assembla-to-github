@@ -1,4 +1,5 @@
 -e git+https://github.com/syrinscape/PyGithub.git@branch-throttled-requester#egg=pygithub
+ipdb
 pip-tools
 requests
 selenium
